@@ -20,5 +20,6 @@ frontend/dist/
 frontend/.vite/
 *.local
 
-# Environment secrets
+# Environment secrets & Local notes
 .env
+INTERVIEW_NOTES.md
