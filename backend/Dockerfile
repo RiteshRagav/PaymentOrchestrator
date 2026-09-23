@@ -2,7 +2,8 @@
 # Multi-stage Dockerfile for Payment Orchestrator Backend
 
 # Stage 1: Build stage
-FROM maven:3.9.6-eclipse-temurin-17-alpine AS build
+# Use a stable Maven image with JDK 17
+FROM maven:3.9-eclipse-temurin-17 AS build
 WORKDIR /app
 
 # Copy POM and download dependencies to leverage Docker cache
@@ -12,19 +13,21 @@ RUN mvn dependency:go-offline -B
 # Copy source code and build application jar (skip tests in container build)
 COPY src ./src
 RUN mvn clean package -DskipTests -B
+# Rename the fat jar (exclude the -plain.jar stub) to a known fixed name
+RUN find /app/target -maxdepth 1 -name '*.jar' ! -name '*-plain.jar' -exec cp {} /app/target/app-exec.jar \;
 
 # Stage 2: Minimal runtime image
-FROM eclipse-temurin:17-jre-alpine AS runtime
+FROM eclipse-temurin:17-jre-jammy AS runtime
 WORKDIR /app
 
 # Add a non-root system user for security
-RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+RUN groupadd -r appgroup && useradd -r -g appgroup appuser
 USER appuser
 
-# Copy built artifact from build stage
-COPY --from=build /app/target/payment-orchestrator-*.jar app.jar
+# Copy the renamed fat jar from build stage
+COPY --from=build /app/target/app-exec.jar app.jar
 
-# Expose standard application port
+# Render injects $PORT; Spring reads server.port=${PORT:8080} so this just works
 EXPOSE 8080
 
 # Configure JVM flags suitable for container memory constraints
